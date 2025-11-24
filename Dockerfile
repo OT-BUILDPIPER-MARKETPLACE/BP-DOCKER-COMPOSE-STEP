@@ -20,6 +20,10 @@ RUN addgroup -g 65522 buildpiper && \
     mkdir -p /home/buildpiper && \
     chown -R buildpiper:buildpiper /home/buildpiper
 
+# Copy private key INSIDE image
+COPY --chown=buildpiper:buildpiper my-pritam.pem /home/buildpiper/key.pem
+RUN chmod 400 /home/buildpiper/key.pem
+
 # Create required directories
 RUN mkdir -p \
         /src/reports \

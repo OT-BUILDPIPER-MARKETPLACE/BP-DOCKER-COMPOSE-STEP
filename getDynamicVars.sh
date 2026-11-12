@@ -2,6 +2,53 @@
 
 SSH_AUTH_DIR="${SSH_AUTH_DIR:-}"
 
+# ---------------------------------------------------------------------------
+# Logging helpers
+# ---------------------------------------------------------------------------
+
+logSeparator() {
+    logInfoMessage "========================================"
+}
+
+logDivider() {
+    logInfoMessage "----------------------------------------"
+}
+
+logHeader() {
+    logSeparator
+    logInfoMessage "BP-DOCKER-COMPOSE-STEP starting"
+    logSeparator
+}
+
+log_step_context() {
+    local instruction="$1"
+    local user="$2"
+    local host="$3"
+    local port="$4"
+
+    logInfoMessage "Host       : ${user}@${host}:${port}"
+    logInfoMessage "Instruction: ${instruction}"
+
+    case "$instruction" in
+        script)
+            if [[ "${SCRIPT_SOURCE:-remote}" == "workspace" ]]; then
+                logInfoMessage "Script     : $(local_script_path) (streamed from workspace)"
+            else
+                logInfoMessage "Script     : ${REMOTE_SCRIPT_PATH:-run.sh} (remote)"
+            fi
+            ;;
+        up|down|pull|restart|ps)
+            logInfoMessage "Compose    : ${COMPOSE_FILE:-docker-compose.yml} [${instruction}]"
+            ;;
+    esac
+
+    if [[ -n "${REMOTE_WORKDIR:-}" ]]; then
+        logInfoMessage "Work Dir   : ${REMOTE_WORKDIR}"
+    fi
+
+    logSeparator
+}
+
 validate_inputs() {
     local failed=0
 
@@ -64,6 +111,7 @@ write_private_key() {
         # Variables flattened to a single line keep literal \n separators
         key_value="${key_value//\\n/$'\n'}"
         printf '%s\n' "$key_value" | tr -d '\r' > "$key_file"
+        logInfoMessage "SSH auth   : using key from SSH_PRIVATE_KEY env var"
         return 0
     fi
 
@@ -86,6 +134,7 @@ write_private_key() {
         return 1
     fi
 
+    logInfoMessage "SSH auth   : using key file [${SSH_PRIVATE_KEY_PATH}]"
     tr -d '\r' < "$SSH_PRIVATE_KEY_PATH" > "$key_file"
 }
 

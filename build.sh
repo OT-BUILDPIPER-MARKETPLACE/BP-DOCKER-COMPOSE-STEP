@@ -26,7 +26,8 @@ COMPOSE_PULL="${COMPOSE_PULL:-false}"
 COMPOSE_EXTRA_ARGS="${COMPOSE_EXTRA_ARGS:-}"
 USE_SUDO="${USE_SUDO:-false}"
 
-logInfoMessage "I'll run [$INSTRUCTION] on [${SSH_USER}@${SSH_HOST}:${SSH_PORT}]"
+logHeader
+log_step_context "$INSTRUCTION" "$SSH_USER" "$SSH_HOST" "$SSH_PORT"
 sleep "$SLEEP_DURATION"
 
 validate_inputs || {
@@ -39,20 +40,25 @@ setup_ssh_auth || {
   exit 1
 }
 
-logInfoMessage "Checking SSH connectivity to [$SSH_HOST]"
+logInfoMessage "Checking SSH connectivity to [$SSH_HOST]..."
 if ! remote_ssh true < /dev/null; then
-  logErrorMessage "Unable to SSH into [${SSH_USER}@${SSH_HOST}:${SSH_PORT}]. Make sure the public key is present in the VM's authorized_keys"
+  logErrorMessage "Unable to SSH into [${SSH_USER}@${SSH_HOST}:${SSH_PORT}]"
+  logErrorMessage "Make sure the public key is present in the VM's authorized_keys"
   saveTaskStatus 1 "$ACTIVITY_SUB_TASK_CODE"
   exit 1
 fi
+logInfoMessage "SSH connectivity to [$SSH_HOST]... OK"
 
 remote_command="$(build_remote_command)" || {
   saveTaskStatus 1 "$ACTIVITY_SUB_TASK_CODE"
   exit 1
 }
 
-logInfoMessage "Running below command on the remote VM"
-logInfoMessage "$remote_command"
+logDivider
+logInfoMessage "Executing [$INSTRUCTION] on remote VM [${SSH_USER}@${SSH_HOST}]"
+logDivider
+
+START_TIME=$(date +%s)
 
 if [[ "$INSTRUCTION" == "script" && "$SCRIPT_SOURCE" == "workspace" ]]; then
   logInfoMessage "Streaming local script [$(local_script_path)] to the remote VM"
@@ -61,6 +67,18 @@ else
   remote_ssh "$remote_command" < /dev/null
 fi
 TASK_STATUS=$?
+
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+
+logDivider
+if [[ "$TASK_STATUS" -eq 0 ]]; then
+  logInfoMessage "Remote execution completed in [${DURATION}s]"
+else
+  logErrorMessage "Remote execution failed after [${DURATION}s] with exit code [$TASK_STATUS]"
+  logErrorMessage "Check the output above for details"
+fi
+logSeparator
 
 saveTaskStatus "$TASK_STATUS" "$ACTIVITY_SUB_TASK_CODE"
 exit "$TASK_STATUS"
